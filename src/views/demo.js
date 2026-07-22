@@ -1,6 +1,6 @@
 // Voice call view: mic button, live transcript with tool-call trace, barge-in.
 import { VoiceCall } from '../lib/audio.js'
-import { ec2 } from '../lib/api.js'
+import { ec2, pod } from '../lib/api.js'
 import { icons } from '../components/icons.js'
 
 // The pod's audio endpoint is on a RunPod-renumbered high TCP port, known only at
@@ -14,6 +14,42 @@ async function resolveWsUrl() {
   // wss to the pod FQDN (grey-cloud DNS -> pod IP) on the audio port, where Caddy fronts
   // the bot's /ws with TLS.
   return `wss://${s.fqdn}:${s.audio_port}/ws`
+}
+
+// A RUNNING pod is NOT a ready pod. Caddy and the bot answer within seconds of boot, but
+// STT, TTS and vLLM take several minutes more — and the bot happily accepts a WebSocket
+// the whole time. Connecting during that window produces a call that looks connected,
+// transcribes nothing and speaks nothing, because STT/TTS are still loading.
+//
+// So check the supervisor's own state before dialling and say plainly what is missing.
+// /api/control/health is unauthenticated (it is the liveness probe), so this costs one
+// cheap request and turns a mystifying dead call into "wait ~2 more minutes".
+const LOADING_STATES = {
+  stopped: 'speech models are still loading',
+  loading: 'the model is loading',
+  warming: 'the model is warming up',
+  verifying_free_vram: 'waiting for VRAM to free',
+  draining: 'a model swap is in progress',
+  stopping: 'a model swap is in progress',
+  rolling_back: 'a failed swap is rolling back',
+}
+
+async function assertReady() {
+  let h
+  try {
+    h = await pod.health()
+  } catch {
+    // Health unreachable is not necessarily fatal (Caddy may still be getting its cert);
+    // let the call attempt proceed and fail with a real transport error if it is.
+    return
+  }
+  if (h.llm_state === 'ready') return
+  if (h.llm_state === 'failed') {
+    throw new Error('the model failed to load — check the Models view for the error')
+  }
+  const why = LOADING_STATES[h.llm_state] || `state: ${h.llm_state}`
+  throw new Error(`pod is not ready yet — ${why}. First boot takes a few minutes; `
+    + 'watch progress in the Models view.')
 }
 
 export function renderDemo() {
@@ -64,13 +100,19 @@ export function renderDemo() {
     try {
       stateEl.textContent = 'resolving pod…'
       const wsUrl = await resolveWsUrl()
+      stateEl.textContent = 'checking readiness…'
+      await assertReady()
       call = new VoiceCall(wsUrl, handlers)
       await call.start()
       micBtn.classList.add('live')
       hint.textContent = 'Listening… click to end'
       stateEl.textContent = 'connecting'
     } catch (e) {
-      add('tool', 'error', `mic/ws failed: ${e.message}`)
+      // Do not prefix everything with "mic/ws failed" — most failures here are neither.
+      // A readiness or pod-state message is already a complete sentence; only a genuine
+      // mic/socket exception needs the extra context.
+      const known = /pod (is )?not (ready|running)|audio port|failed to load|start it in Pod/i
+      add('tool', 'error', known.test(e.message) ? e.message : `mic/ws failed: ${e.message}`)
       stateEl.textContent = 'idle'
       call = null
     }

@@ -64,13 +64,34 @@ export class VoiceCall {
       let msg
       try { msg = JSON.parse(ev.data) } catch { return }
       if (msg.type === 'transcript') {
-        // A user turn arrived -> barge-in: drop any TTS still queued.
-        this._flushPlayback()
+        // Barge-in: a USER turn means drop any TTS still queued.
+        //
+        // Only a user turn. This used to flush unconditionally, but the bot emits its OWN
+        // transcript (role: 'assistant') the moment the LLM response completes — while the
+        // TTS audio for that very sentence is still streaming and queued. Flushing there
+        // cut the agent off mid-sentence, every single time it spoke.
+        if (msg.role !== 'assistant') this._flushPlayback()
         this.h.onTranscript?.(msg)
-      } else if (msg.type === 'bot_started_speaking') this.h.onBotSpeaking?.(true)
-      else if (msg.type === 'bot_stopped_speaking') this.h.onBotSpeaking?.(false)
+      // Both spellings: ours uses underscores, Pipecat's RTVI protocol uses hyphens and
+      // is what actually arrives on the wire in 1.5. Accepting both keeps the speaking
+      // indicator working regardless of which layer emits the event.
+      } else if (msg.type === 'bot_started_speaking' || msg.type === 'bot-started-speaking') {
+        this.h.onBotSpeaking?.(true)
+      } else if (msg.type === 'bot_stopped_speaking' || msg.type === 'bot-stopped-speaking') {
+        this.h.onBotSpeaking?.(false)
+      }
       else if (msg.type === 'tool_call') this.h.onToolCall?.(msg)
-      else if (msg.type === 'error') this.h.onError?.(msg.error)
+      // TWO error shapes arrive on this socket and they are not the same object.
+      //   ours (bot/serializer.py):  {type: 'error', error: '...'}
+      //   Pipecat's RTVI protocol:   {label: 'rtvi-ai', type: 'error', data: {error: '...'}}
+      // Reading only `msg.error` rendered the RTVI one as the literal string "undefined",
+      // which is how a perfectly clear "Cannot connect to host 127.0.0.1:8010" reached the
+      // operator as no information at all. Take whichever field is actually present, and
+      // fall back to the raw payload rather than ever showing "undefined" again.
+      else if (msg.type === 'error') {
+        this.h.onError?.(
+          msg.error ?? msg.data?.error ?? msg.data?.message ?? JSON.stringify(msg))
+      }
       return
     }
     // Binary: PCM16 @ 24k to play.
