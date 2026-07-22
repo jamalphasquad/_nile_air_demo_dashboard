@@ -49,10 +49,14 @@ function podCard(stack, onSelect) {
     <div id="body" class="muted">Loading…</div>
     <div class="row" style="margin-top:18px">
       <button class="btn primary" id="start">Start pod</button>
+      <button class="btn" id="restart">Restart pod</button>
       <button class="btn danger" id="stop">Stop pod</button>
       <div class="spacer"></div>
       <button class="btn ghost" id="refresh">Refresh</button>
     </div>
+    <div class="stat-sub" style="margin-top:8px">Restart reboots the same pod and picks up
+      the latest code — use it after a push. Stop then Start replaces the pod, which means
+      winning a GPU back from the datacenter.</div>
     <div class="login-err" id="err"></div>`
 
   const body = el.querySelector('#body')
@@ -134,6 +138,31 @@ function podCard(stack, onSelect) {
     // A click while a retry loop is running cancels it; otherwise it starts one.
     if (startBtn.textContent !== 'Start pod') { startAbort = true; return }
     startWithRetry()
+  })
+
+  // Reboot in place. Slow (stop, wait for EXITED, start, wait for an IP — minutes), and it
+  // drops any call in progress, so it confirms first and then holds the button in a
+  // pending state rather than looking idle while the request is still open.
+  el.querySelector('#restart').addEventListener('click', async (ev) => {
+    if (!confirm(`Restart ${stack.label}?\n\n`
+      + 'Reboots the same pod and re-deploys the latest code. Takes a few minutes, and '
+      + 'any call in progress will drop.\n\n'
+      + 'The pod itself is kept — unlike Stop then Start, which gives it up and has to '
+      + 'find a free GPU again.')) return
+    const btn = ev.target
+    btn.disabled = true
+    btn.textContent = 'Restarting…'
+    err.textContent = ''
+    try {
+      const r = await ec2.restart(stack.id)
+      // Say which path ran. A recreate means a new pod id, and silently showing one is how
+      // "restart" gets blamed for losing a pod it was asked to keep.
+      if (r.restarted === 'recreated') {
+        err.textContent = `Pod had to be recreated (${r.reason}); it has a new id.`
+      }
+      await refresh()
+    } catch (e) { err.textContent = e.message }
+    finally { btn.disabled = false; btn.textContent = 'Restart pod' }
   })
 
   el.querySelector('#stop').addEventListener('click', async (ev) => {

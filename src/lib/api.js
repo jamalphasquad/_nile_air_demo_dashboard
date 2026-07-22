@@ -53,6 +53,16 @@ export const ec2 = {
     if (stack === currentStack()) resetPodBase()
     return r
   },
+  // Reboot the SAME pod instead of replacing it. Start terminates and recreates by design,
+  // so stop-then-start gives the pod back to the datacenter and has to win a GPU again —
+  // which, at "Low" stock, it may not. Restart keeps the pod you already hold and still
+  // deploys new code, since the pod re-clones the app on every boot. The port can still
+  // change across the reboot, so the cached pod base is dropped either way.
+  restart: async (stack = currentStack()) => {
+    const r = await req(EC2_URL, `/pods/${stack}/restart`, { method: 'POST' })
+    if (stack === currentStack()) resetPodBase()
+    return r
+  },
 }
 
 // Tier 2 — pod control API. The pod's audio/control endpoint is a per-pod high port
