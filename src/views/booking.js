@@ -415,48 +415,50 @@ export function renderBooking() {
 
   // -------------------------------------------------------------- push to talk
 
-  // The recording meter: a waveform drawn left to right as you speak, with the part not
-  // yet reached shown as a dotted trail.
+  // The recording meter: a live waveform held in the CENTRE of the field, with dotted
+  // trails either side. It does not march across the field — the meter is a window onto
+  // the last couple of seconds, so it stays put and simply moves, which reads as "this is
+  // live" rather than "this is filling up".
   //
-  // Bars are built from the MEASURED width at ~6px each rather than a fixed count, so the
-  // density is identical on a laptop and an ultrawide. A fixed count stretched across a
-  // wide field is what made this read as a row of dots instead of a waveform.
+  // Bar count comes from the MEASURED width at a fixed pitch, so the waveform has the same
+  // density on a phone and an ultrawide. A fixed count stretched across a wide field is
+  // what made this read as a row of dots.
   const BAR_PITCH = 6                       // bar + gap, must match .fb-wave in main.css
   const waveEl = $('wave')
   let bars = []
-  let levels = []
-  let cursor = 0
+  let levels = []                            // newest last; only the centre window is drawn
+  let winStart = 0
+  let winEnd = 0
 
   function buildBars() {
     const n = Math.max(24, Math.floor((waveEl.clientWidth || 600) / BAR_PITCH))
-    if (bars.length === n) return
-    waveEl.innerHTML = Array.from({ length: n }, () => '<i class="dot"></i>').join('')
-    bars = [...waveEl.querySelectorAll('i')]
-    levels = new Array(n).fill(null)         // null = not reached yet, drawn as a dot
+    if (bars.length !== n) {
+      waveEl.innerHTML = Array.from({ length: n }, () => '<i class="dot"></i>').join('')
+      bars = [...waveEl.querySelectorAll('i')]
+    }
+    // The active window: a centred slice, never the whole field, so the dots frame it.
+    const win = Math.max(18, Math.min(n, Math.round(n * 0.52)))
+    winStart = Math.floor((n - win) / 2)
+    winEnd = winStart + win
+    levels = new Array(win).fill(0)
   }
 
   function paint() {
     for (let i = 0; i < bars.length; i++) {
-      const v = levels[i]
-      if (v == null) {
+      if (i < winStart || i >= winEnd) {
         bars[i].className = 'dot'
         bars[i].style.transform = ''
       } else {
         bars[i].className = ''
-        bars[i].style.transform = `scaleY(${Math.max(0.12, v)})`
+        bars[i].style.transform = `scaleY(${Math.max(0.1, levels[i - winStart])})`
       }
     }
   }
 
   function pushLevel(v) {
     if (!bars.length) return
-    if (cursor < bars.length) {
-      levels[cursor++] = v
-    } else {
-      // Full: scroll so the most recent speech stays visible.
-      levels.shift()
-      levels.push(v)
-    }
+    levels.shift()
+    levels.push(v)
     paint()
   }
 
@@ -467,8 +469,6 @@ export function renderBooking() {
     el.querySelector('.fb-compose').classList.toggle('recording', on)
     if (on) {
       buildBars()                            // measure now: the field is finally visible
-      levels.fill(null)
-      cursor = 0
       paint()
     }
   }

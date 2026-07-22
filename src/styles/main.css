@@ -312,7 +312,9 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
   flex: 0 0 3px; width: 3px; height: 100%;
   background: linear-gradient(180deg, #a855f7, #ec4899);
   border-radius: 99px; transform: scaleY(0.12);
-  transition: transform 90ms ease-out;
+  /* Just under the ~28ms sample interval, so each bar has settled before the next arrives
+     and the wave moves rather than smearing. */
+  transition: transform 45ms linear;
 }
 /* Not reached yet: the dotted trail ahead of the playhead. */
 .fb-wave i.dot {

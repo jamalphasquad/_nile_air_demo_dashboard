@@ -174,12 +174,19 @@ export class PushToTalk {
       const raw = e.inputBuffer.getChannelData(0)
       this.chunks.push(floatTo16k(raw, this.ctx.sampleRate))
       if (!this.onLevel) return
-      // RMS, then a gentle curve: speech sits low in linear amplitude, so a raw RMS meter
-      // looks almost flat while someone is plainly talking.
-      let sum = 0
-      for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i]
-      const rms = Math.sqrt(sum / raw.length)
-      this.onLevel(Math.min(1, (rms ** 0.5) * 3))
+      // One audio block is ~85ms, which is a visibly sluggish update. Split it into
+      // SLICES sub-windows so the meter moves at ~28ms per bar and reads as live speech
+      // rather than a slideshow.
+      const SLICES = 3
+      const per = Math.floor(raw.length / SLICES)
+      for (let s = 0; s < SLICES; s++) {
+        let sum = 0
+        for (let i = s * per; i < (s + 1) * per; i++) sum += raw[i] * raw[i]
+        const rms = Math.sqrt(sum / per)
+        // A gentle curve: speech sits low in linear amplitude, so a raw RMS meter looks
+        // almost flat while someone is plainly talking.
+        this.onLevel(Math.min(1, (rms ** 0.5) * 3))
+      }
     }
     this.src.connect(this.node)
     this.node.connect(this.ctx.destination)  // required for onaudioprocess to fire
