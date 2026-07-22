@@ -283,9 +283,14 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 .fb-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Recording. The mic button stays inline (it is the stop control, so it must not move
-   under the cursor mid-utterance) but grows an expanding ring, and the text field is
-   replaced in place by a live level meter. */
-.fb-compose:has(.fb-wave:not([hidden])) { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,111,212,0.12); }
+   under the cursor mid-utterance) but grows an expanding ring, and the text field goes
+   dark and turns into a live level meter — the field itself changing state is what makes
+   "I am listening" impossible to miss. */
+.fb-compose.recording {
+  background: #201d26;
+  border-color: #362f42;
+  box-shadow: 0 0 0 3px rgba(168,85,247,0.14);
+}
 .fb-icon-btn.rec { background: var(--red); color: #fff; animation: rec-ring 1.5s ease-out infinite; }
 .fb-icon-btn.rec svg { animation: rec-mic 1.5s ease-in-out infinite; }
 @keyframes rec-ring {
@@ -297,17 +302,31 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 
 /* Level meter. Heights are set per audio block from the mic's RMS, so a flat line means
    the mic genuinely is not hearing anything — the one thing a decorative loop cannot say. */
-.fb-wave { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 3px; height: 34px; padding: 0 2px; }
+/* Level meter. Heights come from the mic's RMS per audio block, so a flat line means the
+   mic genuinely is not hearing anything — the one thing a decorative loop cannot say.
+   Bars are a FIXED 3px on a 6px pitch (see BAR_PITCH in booking.js) and the count is
+   derived from the measured width, so the waveform has the same density on every screen
+   instead of being stretched into a dotted line on a wide one. */
+.fb-wave { flex: 1; min-width: 0; display: flex; align-items: center; gap: 3px; height: 30px; overflow: hidden; }
 .fb-wave i {
-  flex: 1 1 0; min-width: 3px; max-width: 5px; height: 100%;
-  background: linear-gradient(180deg, #6f9bf0, var(--blue));
-  border-radius: 99px; transform: scaleY(0.16); opacity: 0.4;
-  transition: transform 90ms ease-out, opacity 200ms linear;
+  flex: 0 0 3px; width: 3px; height: 100%;
+  background: linear-gradient(180deg, #a855f7, #ec4899);
+  border-radius: 99px; transform: scaleY(0.12);
+  transition: transform 90ms ease-out;
+}
+/* Not reached yet: the dotted trail ahead of the playhead. */
+.fb-wave i.dot {
+  height: 3px; border-radius: 50%;
+  background: #ec4899; opacity: 0.45; transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .fb-icon-btn.rec, .fb-icon-btn.rec svg { animation: none; }
   .fb-wave i { transition: none; }
 }
+
+/* The send button sits on the dark field while recording, so lift it off the background. */
+.fb-compose.recording .fb-icon-btn.primary { background: #3b3350; }
+.fb-compose.recording .fb-icon-btn.primary:hover { background: #4a4166; }
 
 /* search criteria widget */
 .fb-tabs { display: inline-flex; flex-wrap: wrap; max-width: 100%; background: #eef1f6; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 18px; }

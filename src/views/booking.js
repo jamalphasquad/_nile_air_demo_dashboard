@@ -415,33 +415,61 @@ export function renderBooking() {
 
   // -------------------------------------------------------------- push to talk
 
-  // The recording meter. Bars scroll right-to-left as levels arrive, so it reads as a
-  // waveform being drawn rather than a decorative loop — and it goes flat when the mic
-  // hears nothing, which is exactly when someone needs to be told.
-  const WAVE_BARS = 44
+  // The recording meter: a waveform drawn left to right as you speak, with the part not
+  // yet reached shown as a dotted trail.
+  //
+  // Bars are built from the MEASURED width at ~6px each rather than a fixed count, so the
+  // density is identical on a laptop and an ultrawide. A fixed count stretched across a
+  // wide field is what made this read as a row of dots instead of a waveform.
+  const BAR_PITCH = 6                       // bar + gap, must match .fb-wave in main.css
   const waveEl = $('wave')
-  waveEl.innerHTML = Array.from({ length: WAVE_BARS }, () => '<i></i>').join('')
-  const bars = [...waveEl.querySelectorAll('i')]
-  const levels = new Array(WAVE_BARS).fill(0)
+  let bars = []
+  let levels = []
+  let cursor = 0
+
+  function buildBars() {
+    const n = Math.max(24, Math.floor((waveEl.clientWidth || 600) / BAR_PITCH))
+    if (bars.length === n) return
+    waveEl.innerHTML = Array.from({ length: n }, () => '<i class="dot"></i>').join('')
+    bars = [...waveEl.querySelectorAll('i')]
+    levels = new Array(n).fill(null)         // null = not reached yet, drawn as a dot
+  }
+
+  function paint() {
+    for (let i = 0; i < bars.length; i++) {
+      const v = levels[i]
+      if (v == null) {
+        bars[i].className = 'dot'
+        bars[i].style.transform = ''
+      } else {
+        bars[i].className = ''
+        bars[i].style.transform = `scaleY(${Math.max(0.12, v)})`
+      }
+    }
+  }
 
   function pushLevel(v) {
-    levels.push(v)
-    levels.shift()
-    for (let i = 0; i < WAVE_BARS; i++) {
-      // Fade the oldest samples out at the left edge so the trail recedes.
-      const age = i / WAVE_BARS
-      bars[i].style.transform = `scaleY(${Math.max(0.16, levels[i])})`
-      bars[i].style.opacity = String(0.35 + age * 0.65)
+    if (!bars.length) return
+    if (cursor < bars.length) {
+      levels[cursor++] = v
+    } else {
+      // Full: scroll so the most recent speech stays visible.
+      levels.shift()
+      levels.push(v)
     }
+    paint()
   }
 
   function showWave(on) {
     waveEl.hidden = !on
     input.hidden = on
     micBtn.classList.toggle('rec', on)
-    if (!on) {
-      levels.fill(0)
-      bars.forEach((b) => { b.style.transform = 'scaleY(0.16)'; b.style.opacity = '0.4' })
+    el.querySelector('.fb-compose').classList.toggle('recording', on)
+    if (on) {
+      buildBars()                            // measure now: the field is finally visible
+      levels.fill(null)
+      cursor = 0
+      paint()
     }
   }
 
