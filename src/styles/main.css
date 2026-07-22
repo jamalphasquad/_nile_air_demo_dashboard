@@ -203,10 +203,15 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 
 /* transcript / chat */
 .transcript { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding: 4px; }
-.turn { max-width: 78%; padding: 10px 13px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
+/* min-width:0 + overflow-wrap: a flex item defaults to min-width:auto, so one long
+   unbreakable token (a tool call's JSON arguments, a URL) pushes the bubble wider than the
+   card and the whole thread grows a horizontal scrollbar. */
+.turn { max-width: 78%; min-width: 0; overflow-wrap: anywhere; padding: 10px 13px; border-radius: 12px; font-size: 14px; line-height: 1.5; }
 .turn.user { align-self: flex-end; background: var(--navy-900); color: #fff; border-bottom-right-radius: 4px; }
 .turn.bot { align-self: flex-start; background: #eef1f6; color: var(--ink); border-bottom-left-radius: 4px; }
-.turn.tool { align-self: center; background: #fff7e6; border: 1px solid #f3dfae; color: #8a5a00; font-family: var(--mono); font-size: 12px; width: fit-content; }
+/* The trace is the most useful line in the thread, so let it use the full width rather
+   than the 78% a chat bubble gets — and wrap it, never scroll it sideways. */
+.turn.tool { align-self: center; background: #fff7e6; border: 1px solid #f3dfae; color: #8a5a00; font-family: var(--mono); font-size: 12px; width: fit-content; max-width: 100%; white-space: pre-wrap; }
 .turn .who { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-bottom: 3px; }
 /* Still generating. A caret rather than a spinner: it sits at the end of the text, so it
    reads as "more is coming" and tells you WHERE, which a corner spinner cannot. */
@@ -275,11 +280,37 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 .fb-icon-btn:hover { background: #e4e9f2; }
 .fb-icon-btn.primary { background: var(--navy-900); color: #fff; }
 .fb-icon-btn.primary:hover { background: var(--navy-700); }
-.fb-icon-btn.rec { background: var(--red); color: #fff; animation: pulse 1.4s infinite; }
 .fb-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* Recording. The mic button stays inline (it is the stop control, so it must not move
+   under the cursor mid-utterance) but grows an expanding ring, and the text field is
+   replaced in place by a live level meter. */
+.fb-compose:has(.fb-wave:not([hidden])) { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,111,212,0.12); }
+.fb-icon-btn.rec { background: var(--red); color: #fff; animation: rec-ring 1.5s ease-out infinite; }
+.fb-icon-btn.rec svg { animation: rec-mic 1.5s ease-in-out infinite; }
+@keyframes rec-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.55), 0 0 0 0 rgba(239,68,68,0.35); }
+  70%  { box-shadow: 0 0 0 12px rgba(239,68,68,0), 0 0 0 22px rgba(239,68,68,0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0), 0 0 0 0 rgba(239,68,68,0); }
+}
+@keyframes rec-mic { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+
+/* Level meter. Heights are set per audio block from the mic's RMS, so a flat line means
+   the mic genuinely is not hearing anything — the one thing a decorative loop cannot say. */
+.fb-wave { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 3px; height: 34px; padding: 0 2px; }
+.fb-wave i {
+  flex: 1 1 0; min-width: 3px; max-width: 5px; height: 100%;
+  background: linear-gradient(180deg, #6f9bf0, var(--blue));
+  border-radius: 99px; transform: scaleY(0.16); opacity: 0.4;
+  transition: transform 90ms ease-out, opacity 200ms linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fb-icon-btn.rec, .fb-icon-btn.rec svg { animation: none; }
+  .fb-wave i { transition: none; }
+}
+
 /* search criteria widget */
-.fb-tabs { display: inline-flex; background: #eef1f6; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 18px; }
+.fb-tabs { display: inline-flex; flex-wrap: wrap; max-width: 100%; background: #eef1f6; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 18px; }
 .fb-tab { border: none; background: none; padding: 8px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .fb-tab.active { background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 1px 2px rgba(16,31,61,0.1); }
 
@@ -290,10 +321,14 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 @media (max-width: 1100px) { .fb-grid-4 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 760px) { .fb-grid-2, .fb-grid-4 { grid-template-columns: 1fr; } }
 
-.fb-tile { border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 15px; background: #fff; }
+/* min-width:0 on both: an <input> carries an intrinsic minimum width from its `size`
+   attribute, so a tile holding one refuses to shrink below ~170px and pushes the grid
+   past the card on a narrow screen — even after the grid itself has collapsed to one
+   column. This is the fix that actually makes the panel responsive. */
+.fb-tile { border: 1.5px solid var(--border); border-radius: 12px; padding: 11px 15px; background: #fff; min-width: 0; }
 .fb-tile:focus-within { border-color: var(--navy-600); }
 .fb-tile-label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; }
-.fb-tile-inp { width: 100%; border: none; outline: none; background: none; font-family: var(--sans); font-size: 18px; font-weight: 700; color: var(--ink); padding: 3px 0 1px; }
+.fb-tile-inp { width: 100%; min-width: 0; border: none; outline: none; background: none; font-family: var(--sans); font-size: 18px; font-weight: 700; color: var(--ink); padding: 3px 0 1px; }
 .fb-tile-sub { font-size: 12px; color: var(--ink-3); min-height: 16px; }
 .fb-range { display: flex; align-items: center; gap: 8px; border-top: 1px dashed var(--border); margin-top: 6px; padding-top: 4px; }
 .fb-range .fb-tile-inp { font-size: 15px; }
@@ -359,3 +394,32 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
 .fb-empty-msg { font-size: 15px; font-weight: 600; }
 .fb-empty-sub { font-size: 12.5px; color: var(--ink-3); margin: 12px 0 10px; }
 .fb-empty .fb-chips { justify-content: center; }
+
+/* ------------------------------------------------------------------ narrow screens
+   The shell is a fixed 260px sidebar plus content. Below ~860px that leaves too little
+   for the content to lay out in, and every view (not just this one) starts pushing a
+   horizontal scrollbar onto the page. Collapse the sidebar to icons rather than
+   restructuring the shell: the navigation stays exactly where it is and in the same
+   order, it just stops spending 260px on labels. */
+@media (max-width: 860px) {
+  :root { --sidebar-w: 62px; }
+  .brand { font-size: 0; padding: 18px 0 10px; text-align: center; }
+  .brand::first-letter { font-size: 22px; }
+  .brand small { display: none; }
+  .org, .nav-section, .sidebar-foot .status-card { display: none; }
+  .nav { padding: 8px 8px 12px; }
+  .nav-item { justify-content: center; gap: 0; padding: 11px 0; }
+  .nav-item span { display: none; }
+  .nav-item svg { opacity: 1; }
+  .sidebar-foot { padding: 8px; }
+  .topbar { padding-left: 16px; padding-right: 16px; }
+  .content { padding: 16px; }
+}
+
+/* Anything genuinely too wide to reflow (a data table) scrolls inside its own box rather
+   than dragging the page sideways. */
+@media (max-width: 640px) {
+  .card { padding: 16px 14px; }
+  .fb-card { padding: 16px 14px; }
+  .turn { max-width: 92%; }
+}

@@ -147,13 +147,18 @@ export class VoiceCall {
 // floatTo16k), because the pod's STT host is fixed at 16 kHz mono PCM16 and a second,
 // subtly different encoder is how the two paths would drift.
 export class PushToTalk {
-  constructor() {
+  /** `onLevel(0..1)` fires per audio block with the loudness of that block, so the UI can
+   *  show a meter that actually reacts to the caller's voice. A canned CSS loop animates
+   *  identically whether the mic is picking anything up or not, which is the one thing the
+   *  person needs to know. */
+  constructor({ onLevel } = {}) {
     this.stream = null
     this.ctx = null
     this.src = null
     this.node = null
     this.chunks = []
     this.recording = false
+    this.onLevel = onLevel
   }
 
   async start() {
@@ -166,7 +171,15 @@ export class PushToTalk {
     this.node = this.ctx.createScriptProcessor(4096, 1, 1)
     this.node.onaudioprocess = (e) => {
       if (!this.recording) return
-      this.chunks.push(floatTo16k(e.inputBuffer.getChannelData(0), this.ctx.sampleRate))
+      const raw = e.inputBuffer.getChannelData(0)
+      this.chunks.push(floatTo16k(raw, this.ctx.sampleRate))
+      if (!this.onLevel) return
+      // RMS, then a gentle curve: speech sits low in linear amplitude, so a raw RMS meter
+      // looks almost flat while someone is plainly talking.
+      let sum = 0
+      for (let i = 0; i < raw.length; i++) sum += raw[i] * raw[i]
+      const rms = Math.sqrt(sum / raw.length)
+      this.onLevel(Math.min(1, (rms ** 0.5) * 3))
     }
     this.src.connect(this.node)
     this.node.connect(this.ctx.destination)  // required for onaudioprocess to fire

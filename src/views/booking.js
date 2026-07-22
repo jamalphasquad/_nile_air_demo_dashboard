@@ -63,6 +63,7 @@ export function renderBooking() {
       <form class="fb-compose" id="compose">
         <input class="fb-compose-inp" id="msg" autocomplete="off"
                placeholder="Ask to change dates, find the cheapest, or search a whole week…" />
+        <div class="fb-wave" id="wave" hidden aria-hidden="true"></div>
         <button type="button" class="fb-icon-btn" id="mic" title="Click to record">${icons.mic}</button>
         <button type="submit" class="fb-icon-btn primary" id="send" title="Send">${SEND_ICON}</button>
       </form>
@@ -414,11 +415,41 @@ export function renderBooking() {
 
   // -------------------------------------------------------------- push to talk
 
+  // The recording meter. Bars scroll right-to-left as levels arrive, so it reads as a
+  // waveform being drawn rather than a decorative loop — and it goes flat when the mic
+  // hears nothing, which is exactly when someone needs to be told.
+  const WAVE_BARS = 44
+  const waveEl = $('wave')
+  waveEl.innerHTML = Array.from({ length: WAVE_BARS }, () => '<i></i>').join('')
+  const bars = [...waveEl.querySelectorAll('i')]
+  const levels = new Array(WAVE_BARS).fill(0)
+
+  function pushLevel(v) {
+    levels.push(v)
+    levels.shift()
+    for (let i = 0; i < WAVE_BARS; i++) {
+      // Fade the oldest samples out at the left edge so the trail recedes.
+      const age = i / WAVE_BARS
+      bars[i].style.transform = `scaleY(${Math.max(0.16, levels[i])})`
+      bars[i].style.opacity = String(0.35 + age * 0.65)
+    }
+  }
+
+  function showWave(on) {
+    waveEl.hidden = !on
+    input.hidden = on
+    micBtn.classList.toggle('rec', on)
+    if (!on) {
+      levels.fill(0)
+      bars.forEach((b) => { b.style.transform = 'scaleY(0.16)'; b.style.opacity = '0.4' })
+    }
+  }
+
   async function toggleMic() {
     if (ptt) {
       const rec = ptt
       ptt = null
-      micBtn.classList.remove('rec')
+      showWave(false)
       const pcm = rec.stop()
       if (!pcm.length) { setState('', 'Ready · voice & text'); return }
       setState('busy', 'Transcribing…')
@@ -445,12 +476,13 @@ export function renderBooking() {
       return
     }
     try {
-      ptt = new PushToTalk()
+      ptt = new PushToTalk({ onLevel: pushLevel })
       await ptt.start()
-      micBtn.classList.add('rec')
-      setState('rec', 'Recording — click again to stop')
+      showWave(true)
+      setState('rec', 'Listening — click the mic again to stop')
     } catch (ex) {
       ptt = null
+      showWave(false)
       bubble('tool', 'error', `microphone failed: ${ex.message}`)
     }
   }
