@@ -196,6 +196,10 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.tbl th { text-align: left; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; color: var(--ink-3); text-transform: uppercase; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 table.tbl td { padding: 11px 12px; border-bottom: 1px solid var(--border); }
 table.tbl tr:hover td { background: #f9fafc; }
+/* The selected row in a pick-one table (voices). Tinted rather than bordered so it stays
+   legible under the hover rule above, which would otherwise cover a background change. */
+table.tbl tr.row-active td { background: #f2f7ff; }
+table.tbl tr.row-active:hover td { background: #eaf1fd; }
 
 /* transcript / chat */
 .transcript { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; padding: 4px; }

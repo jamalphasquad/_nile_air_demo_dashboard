@@ -8,6 +8,7 @@ const NAV = [
   { section: 'Control' },
   { path: '/pod', label: 'Pod', icon: 'server' },
   { path: '/models', label: 'Models', icon: 'cpu' },
+  { path: '/voices', label: 'Voices', icon: 'mic' },
   { section: 'Admin' },
   { path: '/prompt', label: 'System Prompt', icon: 'doc' },
   { path: '/kb', label: 'Knowledge Base', icon: 'book' },

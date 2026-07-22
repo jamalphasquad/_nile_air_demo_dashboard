@@ -104,6 +104,20 @@ export const pod = {
   // headers). Async because the pod base is resolved at runtime.
   eventsUrl: async () => `${await podBase()}/api/control/events`,
 
+  // Voice — the reference clip each TTS engine clones. Two selections, never one: the
+  // Arabic and English engines are separate models with separate references, so switching
+  // one cannot change the other. Applies on the next utterance; no model reload.
+  voices: () => podReq('/api/control/voices'),
+  setVoice: (lang, voice_key) =>
+    podReq('/api/control/voice', { method: 'PUT', body: { lang, voice_key } }),
+  // The reference clip itself, as a blob. Fetched (not set as an <audio src>) because the
+  // endpoint is auth-guarded and an <audio> element cannot send the bearer token.
+  voiceSample: async (key) => {
+    const r = await podReq(`/api/control/voices/${encodeURIComponent(key)}/sample.wav`,
+      { raw: true })
+    return URL.createObjectURL(await r.blob())
+  },
+
   getPrompts: () => podReq('/api/control/prompt'),
   createPrompt: (label, body) =>
     podReq('/api/control/prompt', { method: 'POST', body: { label, body } }),

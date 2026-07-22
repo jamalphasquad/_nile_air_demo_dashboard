@@ -7,6 +7,7 @@ import { renderDemo } from './views/demo.js'
 import { renderChat } from './views/chat.js'
 import { renderPod } from './views/pod.js'
 import { renderModels } from './views/models.js'
+import { renderVoices } from './views/voices.js'
 import { renderPrompt } from './views/prompt.js'
 import { renderKb } from './views/kb.js'
 import { renderBookings } from './views/bookings.js'
@@ -19,6 +20,7 @@ const ROUTES = {
   '/chat': { title: 'Text Chat', view: renderChat },
   '/pod': { title: 'Pod', view: renderPod },
   '/models': { title: 'Models', view: renderModels },
+  '/voices': { title: 'Voices', view: renderVoices },
   '/prompt': { title: 'System Prompt', view: renderPrompt },
   '/kb': { title: 'Knowledge Base', view: renderKb },
   '/schedules': { title: 'Flight Schedule', view: renderSchedules },
