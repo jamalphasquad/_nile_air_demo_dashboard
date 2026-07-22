@@ -175,6 +175,9 @@ export const pod = {
 
   // history is an optional [{role, content}] thread so text chat can carry a booking flow
   // across turns (search -> choose -> book), matching the voice path.
-  chat: (text, history) =>
-    podReq('/chat', { method: 'POST', body: { text, history } }),
+  // `language` ("en"/"ar") pins the reply language for the turn. Pass the tag STT returned
+  // for a spoken turn — that is real evidence, where the server otherwise has to infer the
+  // language from the script. Omit it for typed turns and let the server decide.
+  chat: (text, history, language) =>
+    podReq('/chat', { method: 'POST', body: { text, history, language } }),
 }

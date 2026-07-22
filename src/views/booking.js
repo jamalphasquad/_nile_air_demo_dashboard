@@ -380,7 +380,10 @@ export function renderBooking() {
 
   // -------------------------------------------------------------- agent turn
 
-  async function send(text, { voice = false } = {}) {
+  // `language` is the tag STT returned for a spoken turn; it pins the reply language so an
+  // English caller is not answered in Arabic. Typed turns pass nothing and the server
+  // infers it from the script.
+  async function send(text, { voice = false, language } = {}) {
     if (busy || !text) return
     busy = true
     sendBtn.disabled = micBtn.disabled = true
@@ -388,7 +391,7 @@ export function renderBooking() {
     input.value = ''
     setState('busy', 'Thinking…')
     try {
-      const r = await pod.chat(text, history)
+      const r = await pod.chat(text, history, language)
       modelEl.textContent = r.model || ''
       for (const tc of (r.tool_calls || [])) bubble('tool', 'tool call', traceLine(tc))
       if (r.text) bubble('bot', 'agent', r.text)
@@ -418,10 +421,10 @@ export function renderBooking() {
       setState('busy', 'Transcribing…')
       micBtn.disabled = true
       try {
-        const { text } = await pod.transcribe(pcm)
+        const { text, language } = await pod.transcribe(pcm)
         if (!text?.trim()) { setState('', 'Nothing heard — try again'); return }
         input.value = text
-        await send(text, { voice: true })
+        await send(text, { voice: true, language })
       } catch (ex) {
         if (ex.status === 404) {
           // The pod predates /api/control/stt; it re-clones the app on boot, so a restart
