@@ -204,6 +204,12 @@ table.tbl tr:hover td { background: #f9fafc; }
 .turn.bot { align-self: flex-start; background: #eef1f6; color: var(--ink); border-bottom-left-radius: 4px; }
 .turn.tool { align-self: center; background: #fff7e6; border: 1px solid #f3dfae; color: #8a5a00; font-family: var(--mono); font-size: 12px; width: fit-content; }
 .turn .who { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.7; margin-bottom: 3px; }
+/* Still generating. A caret rather than a spinner: it sits at the end of the text, so it
+   reads as "more is coming" and tells you WHERE, which a corner spinner cannot. */
+.turn.bot.streaming > div:last-child::after {
+  content: '▍'; margin-left: 2px; opacity: 0.45; animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
 
 /* mic button */
 .mic {

@@ -84,12 +84,33 @@ export function renderDemo() {
     d.innerHTML = `<div class="who">${who}</div><div${isAr ? ' dir="rtl"' : ''}>${text}</div>`
     transcript.appendChild(d)
     transcript.scrollTop = transcript.scrollHeight
+    return d
+  }
+
+  // The agent's reply streams in as it is generated: several messages sharing one `turn`,
+  // the last flagged final. Keep the element for the turn in flight and rewrite it, rather
+  // than appending a bubble per fragment. Keyed by `turn` so a new reply always starts a
+  // new bubble even if the previous one never got its final (a barge-in the server did not
+  // observe), and older servers that send no `turn` still land on the one-bubble path.
+  let botTurn = null      // {id, el}
+  const addBotStreaming = (m) => {
+    const id = m.turn ?? 'single'
+    if (!botTurn || botTurn.id !== id) {
+      botTurn = { id, el: add('bot', `agent · ${m.language || ''}`, m.text) }
+    } else {
+      const body = botTurn.el.lastElementChild
+      body.textContent = m.text
+      if (/[؀-ۿ]/.test(m.text)) body.setAttribute('dir', 'rtl')
+      transcript.scrollTop = transcript.scrollHeight
+    }
+    botTurn.el.classList.toggle('streaming', !m.final)
+    if (m.final) botTurn = null
   }
 
   const handlers = {
     onState: (s) => { stateEl.textContent = s },
     onTranscript: (m) => (m.role === 'assistant'
-      ? add('bot', `agent · ${m.language || ''}`, m.text)
+      ? addBotStreaming(m)
       : add('user', `you · ${m.language || '?'}`, m.text)),
     onToolCall: (m) => add('tool', 'tool', `${m.name}(${JSON.stringify(m.args || {})})`),
     onBotSpeaking: (on) => { micBtn.classList.toggle('speaking', on) },
@@ -125,7 +146,10 @@ export function renderDemo() {
   }
 
   micBtn.addEventListener('click', () => (call ? endCall() : startCall()))
-  el.querySelector('#clear').addEventListener('click', () => (transcript.innerHTML = ''))
+  el.querySelector('#clear').addEventListener('click', () => {
+    transcript.innerHTML = ''
+    botTurn = null      // its element is gone; keep streaming from writing into a corpse
+  })
 
   return { el, cleanup: () => call?.stop() }
 }
