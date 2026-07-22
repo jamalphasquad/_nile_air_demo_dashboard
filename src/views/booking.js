@@ -13,6 +13,7 @@ import { pod } from '../lib/api.js'
 import { PushToTalk } from '../lib/audio.js'
 import { icons } from '../components/icons.js'
 import { esc, isArabic, traceLine, hhmm, hm, money, dayLabel } from '../lib/fmt.js'
+import { explainAgentFailure } from '../lib/ready.js'
 
 const SEND_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2 15 22l-4-9-9-4z"/></svg>'
 const SWAP_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l4 4-4 4M21 7H7M7 21l-4-4 4-4M3 17h14"/></svg>'
@@ -400,7 +401,9 @@ export function renderBooking() {
       if (applyToolCalls(r.tool_calls)) renderResults()
       setState('', 'Ready · voice & text')
     } catch (ex) {
-      bubble('tool', 'error', ex.message)
+      // A 500 here is almost always "vLLM is not listening yet", not a bug — ask the
+      // control tier what is happening rather than showing the caller a bare status code.
+      bubble('tool', 'error', await explainAgentFailure(ex))
       setState('err', 'Error — see the thread')
     } finally {
       busy = false

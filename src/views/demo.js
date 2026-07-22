@@ -1,6 +1,7 @@
 // Voice call view: mic button, live transcript with tool-call trace, barge-in.
 import { VoiceCall } from '../lib/audio.js'
-import { ec2, pod } from '../lib/api.js'
+import { ec2 } from '../lib/api.js'
+import { assertPodReady } from '../lib/ready.js'
 import { icons } from '../components/icons.js'
 
 // The pod's audio endpoint is on a RunPod-renumbered high TCP port, known only at
@@ -16,41 +17,10 @@ async function resolveWsUrl() {
   return `wss://${s.fqdn}:${s.audio_port}/ws`
 }
 
-// A RUNNING pod is NOT a ready pod. Caddy and the bot answer within seconds of boot, but
-// STT, TTS and vLLM take several minutes more — and the bot happily accepts a WebSocket
-// the whole time. Connecting during that window produces a call that looks connected,
-// transcribes nothing and speaks nothing, because STT/TTS are still loading.
-//
-// So check the supervisor's own state before dialling and say plainly what is missing.
-// /api/control/health is unauthenticated (it is the liveness probe), so this costs one
-// cheap request and turns a mystifying dead call into "wait ~2 more minutes".
-const LOADING_STATES = {
-  stopped: 'speech models are still loading',
-  loading: 'the model is loading',
-  warming: 'the model is warming up',
-  verifying_free_vram: 'waiting for VRAM to free',
-  draining: 'a model swap is in progress',
-  stopping: 'a model swap is in progress',
-  rolling_back: 'a failed swap is rolling back',
-}
-
-async function assertReady() {
-  let h
-  try {
-    h = await pod.health()
-  } catch {
-    // Health unreachable is not necessarily fatal (Caddy may still be getting its cert);
-    // let the call attempt proceed and fail with a real transport error if it is.
-    return
-  }
-  if (h.llm_state === 'ready') return
-  if (h.llm_state === 'failed') {
-    throw new Error('the model failed to load — check the Models view for the error')
-  }
-  const why = LOADING_STATES[h.llm_state] || `state: ${h.llm_state}`
-  throw new Error(`pod is not ready yet — ${why}. First boot takes a few minutes; `
-    + 'watch progress in the Models view.')
-}
+// Checking readiness before dialling lives in lib/ready.js now, because the Flight Booking
+// page needs the same answer: a RUNNING pod is NOT a ready pod, and both the WebSocket and
+// /chat accept requests for the several minutes STT, TTS and vLLM take to load.
+const assertReady = assertPodReady
 
 export function renderDemo() {
   const el = document.createElement('div')
