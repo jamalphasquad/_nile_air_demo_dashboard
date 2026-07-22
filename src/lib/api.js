@@ -3,19 +3,26 @@
 import { EC2_URL } from './config.js'
 import { getToken, logout } from './session.js'
 
-async function req(base, path, { method = 'GET', body, raw } = {}) {
+// `rawBody` is an ArrayBuffer sent as-is (the mic's PCM16); `body` is JSON-encoded.
+async function req(base, path, { method = 'GET', body, rawBody, raw } = {}) {
   const headers = { Authorization: `Bearer ${getToken() || ''}` }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (rawBody !== undefined) headers['Content-Type'] = 'application/octet-stream'
   const r = await fetch(`${base}${path}`, {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: rawBody !== undefined ? rawBody
+      : body !== undefined ? JSON.stringify(body) : undefined,
   })
   if (r.status === 401) { logout(); throw new Error('Session expired') }
   if (!r.ok) {
     let detail = `${r.status}`
     try { detail = (await r.json()).detail || detail } catch {}
-    throw new Error(detail)
+    // Carry the status: callers distinguish "this pod is too old to have that route" (404)
+    // from "the model is still loading" (503), which read identically in `detail`.
+    const err = new Error(detail)
+    err.status = r.status
+    throw err
   }
   if (raw) return r
   if (r.status === 204) return null
@@ -143,6 +150,19 @@ export const pod = {
 
   getBooking: (pnr, surname) =>
     podReq(`/api/control/bookings/${encodeURIComponent(pnr)}?surname=${encodeURIComponent(surname)}`),
+
+  // One-shot transcription of a push-to-talk utterance. `pcm` is an Int16Array of mono
+  // 16 kHz samples — the same format the call path streams — sent as raw bytes, because
+  // the pod's STT host treats every byte as a sample and a WAV header would be decoded as
+  // noise at the head of the utterance. Returns {text, language, ...}.
+  transcribe: (pcm, language = 'auto') =>
+    podReq(`/api/control/stt?language=${encodeURIComponent(language)}`, {
+      method: 'POST', rawBody: pcm.buffer,
+    }),
+
+  // Book a seat directly (the Flight Booking page's inline Select form). Runs the same
+  // domain mutation as the agent's book_flight tool, so both produce the same PNR.
+  book: (booking) => podReq('/api/control/bookings', { method: 'POST', body: booking }),
 
   // Operator browse — the full schedule and all bookings, behind the dashboard's own auth.
   listFlights: (params = {}) => {

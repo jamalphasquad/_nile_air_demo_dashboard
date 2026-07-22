@@ -7,7 +7,7 @@
 // separate worklet file, which is the right trade for a single-call demo.
 import { MIC_RATE, TTS_RATE } from './config.js'
 
-function floatTo16k(input, inRate) {
+export function floatTo16k(input, inRate) {
   // Linear resample input (Float32 @ inRate) down to MIC_RATE, return Int16.
   const ratio = inRate / MIC_RATE
   const outLen = Math.floor(input.length / ratio)
@@ -136,5 +136,57 @@ export class VoiceCall {
     try { this.ws?.close() } catch {}
     try { this.ctx?.close() } catch {}
     try { this.playCtx?.close() } catch {}
+  }
+}
+
+// Push-to-talk: capture one utterance, hand back the PCM, done. No socket and no playback
+// — the Flight Booking page wants a transcript in a text box, not a conversation, so this
+// records to memory and lets the caller POST it to the pod's STT route.
+//
+// Deliberately the SAME capture path as VoiceCall above (getUserMedia -> ScriptProcessor ->
+// floatTo16k), because the pod's STT host is fixed at 16 kHz mono PCM16 and a second,
+// subtly different encoder is how the two paths would drift.
+export class PushToTalk {
+  constructor() {
+    this.stream = null
+    this.ctx = null
+    this.src = null
+    this.node = null
+    this.chunks = []
+    this.recording = false
+  }
+
+  async start() {
+    this.chunks = []
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    })
+    this.ctx = new AudioContext()
+    this.src = this.ctx.createMediaStreamSource(this.stream)
+    this.node = this.ctx.createScriptProcessor(4096, 1, 1)
+    this.node.onaudioprocess = (e) => {
+      if (!this.recording) return
+      this.chunks.push(floatTo16k(e.inputBuffer.getChannelData(0), this.ctx.sampleRate))
+    }
+    this.src.connect(this.node)
+    this.node.connect(this.ctx.destination)  // required for onaudioprocess to fire
+    this.recording = true
+  }
+
+  /** Stop capture and return the whole utterance as one Int16Array (empty if silent). */
+  stop() {
+    this.recording = false
+    try { this.node?.disconnect() } catch {}
+    try { this.src?.disconnect() } catch {}
+    this.stream?.getTracks().forEach((t) => t.stop())
+    try { this.ctx?.close() } catch {}
+    this.ctx = this.src = this.node = this.stream = null
+
+    const total = this.chunks.reduce((n, c) => n + c.length, 0)
+    const out = new Int16Array(total)
+    let at = 0
+    for (const c of this.chunks) { out.set(c, at); at += c.length }
+    this.chunks = []
+    return out
   }
 }

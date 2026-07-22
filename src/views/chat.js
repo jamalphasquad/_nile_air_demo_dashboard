@@ -1,6 +1,7 @@
 // Text chat: same model + tools, no audio. Shows the tool-call trace so tool calling is
 // visible without a microphone — the fastest way to demo the agent on stage.
 import { pod } from '../lib/api.js'
+import { esc, isArabic, traceLine } from '../lib/fmt.js'
 
 export function renderChat() {
   const el = document.createElement('div')
@@ -24,26 +25,12 @@ export function renderChat() {
   // messages (search -> choose -> book), exactly like the voice path.
   const history = []
 
-  const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
-
   const add = (cls, who, text) => {
     const d = document.createElement('div')
     d.className = `turn ${cls}`
-    const isAr = /[؀-ۿ]/.test(text)
-    d.innerHTML = `<div class="who">${esc(who)}</div><div${isAr ? ' dir="rtl"' : ''}>${esc(text)}</div>`
+    const rtl = isArabic(text) ? ' dir="rtl"' : ''
+    d.innerHTML = `<div class="who">${esc(who)}</div><div${rtl}>${esc(text)}</div>`
     log.appendChild(d); log.scrollTop = log.scrollHeight
-  }
-
-  // Compact one-liner for a tool call + whether its result came back ok.
-  const traceLine = (tc) => {
-    const args = tc.args ? JSON.stringify(tc.args) : ''
-    const r = tc.result || {}
-    let outcome = ''
-    if (r.ok === false) outcome = ` ✗ ${r.message_en || r.error || 'failed'}`
-    else if (Array.isArray(r.flights)) outcome = ` → ${r.flights.length} flight(s)`
-    else if (r.action) outcome = ` → ${r.action}${r.pnr?.code ? ` ${r.pnr.code}` : ''}`
-    else if (r.ok) outcome = ' ✓'
-    return `${tc.name}(${args})${outcome}`
   }
 
   form.addEventListener('submit', async (e) => {

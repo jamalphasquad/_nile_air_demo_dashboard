@@ -5,6 +5,7 @@ import { ec2, currentStack } from './lib/api.js'
 import { renderLogin } from './views/login.js'
 import { renderDemo } from './views/demo.js'
 import { renderChat } from './views/chat.js'
+import { renderBooking } from './views/booking.js'
 import { renderPod } from './views/pod.js'
 import { renderModels } from './views/models.js'
 import { renderVoices } from './views/voices.js'
@@ -18,6 +19,7 @@ const app = document.getElementById('app')
 const ROUTES = {
   '/': { title: 'Voice Call', view: renderDemo },
   '/chat': { title: 'Text Chat', view: renderChat },
+  '/booking': { title: 'Book a Flight', view: renderBooking },
   '/pod': { title: 'Pod', view: renderPod },
   '/models': { title: 'Models', view: renderModels },
   '/voices': { title: 'Voices', view: renderVoices },

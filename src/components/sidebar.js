@@ -5,6 +5,7 @@ const NAV = [
   { section: 'Demo' },
   { path: '/', label: 'Voice Call', icon: 'phone' },
   { path: '/chat', label: 'Text Chat', icon: 'chat' },
+  { path: '/booking', label: 'Flight Booking', icon: 'plane' },
   { section: 'Control' },
   { path: '/pod', label: 'Pod', icon: 'server' },
   { path: '/models', label: 'Models', icon: 'cpu' },
