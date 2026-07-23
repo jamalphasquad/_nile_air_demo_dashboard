@@ -80,7 +80,20 @@ export class VoiceCall {
       } else if (msg.type === 'bot_stopped_speaking' || msg.type === 'bot-stopped-speaking') {
         this.h.onBotSpeaking?.(false)
       }
+      // Barge-in, told to us explicitly. Only the cloud realtime bridge sends this: its VAD
+      // runs at the provider, so it knows the caller started talking over the agent seconds
+      // before the transcript of what they said comes back from ASR. The pod path needs no
+      // such frame because its user transcript arrives at that same moment and the branch
+      // above already flushes on it — waiting for ASR here would leave the agent audibly
+      // talking over the caller for the whole recognition delay.
+      else if (msg.type === 'flush_playback') this._flushPlayback()
       else if (msg.type === 'tool_call') this.h.onToolCall?.(msg)
+      // The same tool, once it has run: {name, args, result}. Sent by both tiers (the pod's
+      // bot/tools/airline.py `_reply`, the bridge's `_handle_tool_call`) so the Voice
+      // Booking page can draw flight cards and PNRs from a call in progress. Optional by
+      // design — a pod predating the frame simply never sends it, and the transcript-only
+      // Voice Call view never asks for it.
+      else if (msg.type === 'tool_result') this.h.onToolResult?.(msg)
       // TWO error shapes arrive on this socket and they are not the same object.
       //   ours (bot/serializer.py):  {type: 'error', error: '...'}
       //   Pipecat's RTVI protocol:   {label: 'rtvi-ai', type: 'error', data: {error: '...'}}

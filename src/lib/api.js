@@ -29,12 +29,26 @@ async function req(base, path, { method = 'GET', body, rawBody, raw } = {}) {
   return r.json()
 }
 
-// Which stack the Control/Admin views act on. There are two independent demo stacks (the
-// H100 pod and the cheaper Qwen 3.5-9B pod) and both can be running at once, so "which one
-// am I talking to" has to be explicit rather than implied. Persisted so a page reload does
-// not silently move you back to the expensive pod.
+// Which provider the Control/Admin views act on. There are three: two independent GPU
+// stacks (the H100 pod and the cheaper Qwen 3.5-9B pod), either or both of which can be
+// running, and one CLOUD provider that is never off. So "which one am I talking to" has to
+// be explicit rather than implied. Persisted so a page reload does not silently move you
+// back to the expensive pod.
 const STACK_KEY = 'nileair.stack'
-export function currentStack() { return localStorage.getItem(STACK_KEY) || 'h100' }
+
+// The cloud realtime provider. Not a pod: it has no lifecycle, no GPU and no per-pod port —
+// it is served by the EC2 tier at /realtime, which deliberately presents the SAME surface a
+// pod's control API does (/api/control/*, /chat, /ws, /health). That is what lets every view
+// below keep calling `pod.*` with no knowledge of which provider is selected.
+export const CLOUD_STACK = 'cloud-realtime'
+export const CLOUD_BASE = `${EC2_URL}/realtime`
+export function isCloud() { return currentStack() === CLOUD_STACK }
+// Mirrors deploy.settings.DEFAULT_STACK. Hardcoded rather than fetched because callers are
+// synchronous and this is the value used before /stacks has answered; it is the CHEAP
+// stack, so the cost of the two drifting apart is a wrong label, never a surprise $2.99/hr
+// pod. A stack the operator has explicitly selected wins over it, from localStorage.
+const DEFAULT_STACK = 'qwen9b'
+export function currentStack() { return localStorage.getItem(STACK_KEY) || DEFAULT_STACK }
 export function setCurrentStack(id) {
   if (id === currentStack()) return
   localStorage.setItem(STACK_KEY, id)
@@ -70,11 +84,19 @@ export const ec2 = {
     if (stack === currentStack()) resetPodBase()
     return r
   },
+  // How long this pod may run before the cron dead-man's switch terminates it. Settable
+  // while it is running, and the clock restarts at the moment you set it — so "2 hours"
+  // always means two hours from the click, never two hours from pod start. /status already
+  // carries the same block, so the card's countdown needs no extra poll; this pair is for
+  // reading it on demand and changing it.
+  keepalive: (stack = currentStack()) => req(EC2_URL, `/pods/${stack}/keepalive`),
+  setKeepalive: (hours, stack = currentStack()) =>
+    req(EC2_URL, `/pods/${stack}/keepalive`, { method: 'PUT', body: { hours } }),
 }
 
 // Tier 2 — pod control API. The pod's audio/control endpoint is a per-pod high port
 // (RunPod renumbers it on every create), so a build-time POD_URL goes stale the moment the
-// pod is recreated — which, with the 45-minute auto-stop, is often. Resolve it at RUNTIME
+// pod is recreated — which, with the keep-alive auto-stop (1h by default), is often. Resolve it at RUNTIME
 // from the EC2 tier's /pod/status (fqdn + audio_port), exactly as the voice call already
 // resolves its WebSocket URL. Memoised; reset on start/stop and self-healed on a network
 // error (the symptom of a stale port after an unattended restart).
@@ -83,6 +105,11 @@ export function resetPodBase() { _podBase = null }
 
 async function podBase() {
   if (_podBase) return _podBase
+  // The cloud provider needs no resolution at all: it lives on the EC2 tier's stable
+  // hostname at a fixed path, so there is no pod status to read and no high port to chase.
+  // Everything below this line exists only because RunPod renumbers a pod's port on every
+  // create.
+  if (isCloud()) { _podBase = CLOUD_BASE; return _podBase }
   const s = await ec2.status()
   if (!s.exists || s.state !== 'RUNNING' || !s.fqdn || !s.audio_port) {
     throw new Error(
@@ -104,6 +131,25 @@ async function podReq(path, opts) {
 }
 
 export const pod = {
+  // The voice-call WebSocket for the SELECTED provider, resolved at runtime for the same
+  // reason the HTTP base is. For a pod that means reading the current fqdn and RunPod-
+  // renumbered audio port; for the cloud provider it is the EC2 tier's /realtime/ws, with
+  // the session token as a query param because a browser WebSocket cannot set headers (the
+  // same constraint EventSource has, solved the same way).
+  wsUrl: async () => {
+    if (isCloud()) {
+      return `${CLOUD_BASE.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(getToken() || '')}`
+    }
+    const s = await ec2.status()
+    if (!s.exists || s.state !== 'RUNNING' || !s.ip) {
+      throw new Error(`pod not running (state: ${s.state || 'none'}) — start it in Pod view`)
+    }
+    if (!s.audio_port) throw new Error('pod has no audio port mapped yet')
+    // wss to the pod FQDN (grey-cloud DNS -> pod IP) on the audio port, where Caddy fronts
+    // the bot's /ws with TLS.
+    return `wss://${s.fqdn}:${s.audio_port}/ws`
+  },
+
   health: () => podReq('/api/control/health'),
   status: () => podReq('/api/control/status'),
   models: () => podReq('/api/control/models'),

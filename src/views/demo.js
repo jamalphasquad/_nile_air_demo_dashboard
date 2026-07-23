@@ -1,21 +1,14 @@
 // Voice call view: mic button, live transcript with tool-call trace, barge-in.
 import { VoiceCall } from '../lib/audio.js'
-import { ec2 } from '../lib/api.js'
+import { pod, isCloud } from '../lib/api.js'
 import { assertPodReady } from '../lib/ready.js'
 import { icons } from '../components/icons.js'
 
-// The pod's audio endpoint is on a RunPod-renumbered high TCP port, known only at
-// runtime — so the WS URL is resolved from the live pod status, not a build-time constant.
-async function resolveWsUrl() {
-  const s = await ec2.status()
-  if (!s.exists || s.state !== 'RUNNING' || !s.ip) {
-    throw new Error(`pod not running (state: ${s.state || 'none'}) — start it in Pod view`)
-  }
-  if (!s.audio_port) throw new Error('pod has no audio port mapped yet')
-  // wss to the pod FQDN (grey-cloud DNS -> pod IP) on the audio port, where Caddy fronts
-  // the bot's /ws with TLS.
-  return `wss://${s.fqdn}:${s.audio_port}/ws`
-}
+// Resolving the audio endpoint lives in lib/api.js now, because the answer depends on which
+// provider is selected: a pod's endpoint is a RunPod-renumbered high TCP port known only at
+// runtime, while the cloud provider is a fixed path on the EC2 tier. Both are wss:// with
+// the same wire protocol on the other end, which is why one VoiceCall serves both.
+const resolveWsUrl = pod.wsUrl
 
 // Checking readiness before dialling lives in lib/ready.js now, because the Flight Booking
 // page needs the same answer: a RUNNING pod is NOT a ready pod, and both the WebSocket and
@@ -33,6 +26,7 @@ export function renderDemo() {
       <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:14px 0 22px">
         <button class="mic" id="mic" title="Start call">${icons.mic}</button>
         <div class="muted" id="hint">Click to start · speak Egyptian Arabic or English</div>
+        <div class="stat-sub" id="provider"></div>
       </div>
     </div>
     <div class="card">
@@ -46,6 +40,13 @@ export function renderDemo() {
   const hint = el.querySelector('#hint')
   const transcript = el.querySelector('#transcript')
   let call = null
+
+  // Say which agent is about to answer. The two paths sound and behave differently — one
+  // voice for both languages versus a speaker change at every script switch — and on stage
+  // that is the whole point of having both, so it should never be a guess.
+  el.querySelector('#provider').textContent = isCloud()
+    ? 'cloud realtime · one model, one voice, Arabic + English'
+    : 'self-hosted pod · Cohere STT → vLLM → Habibi/VoxCPM TTS'
 
   const add = (cls, who, text) => {
     const d = document.createElement('div')

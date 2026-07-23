@@ -444,3 +444,194 @@ table.tbl tr.row-active:hover td { background: #eaf1fd; }
   .fb-card { padding: 16px 14px; }
   .turn { max-width: 92%; }
 }
+
+/* ================================================================ voice booking
+   The Voice Booking page (views/voicebooking.js). Its own block rather than a variant of
+   the fb-* one above: that card is a row in a desktop results LIST, this one is a message
+   in a thread on a phone. Mobile is the design target here — most callers who would rather
+   talk than fill in a search panel are holding a phone — so the sizes below are the phone
+   sizes and the wider screens only get more room, never a different layout. */
+
+/* Full content width, like every other page — the thread is the page here, so boxing it
+   into a phone-width column on a desktop just leaves two empty margins. Height is pinned to
+   the viewport under the topbar so the thread scrolls inside ITSELF and the compose stays
+   put; a page-level scroll would move the mic button off screen exactly when the caller
+   wants it. */
+.vb-shell {
+  display: flex; flex-direction: column; gap: 12px;
+  height: calc(100vh - 118px); min-height: 420px;
+}
+
+.vb-head {
+  display: flex; align-items: center; gap: 14px; flex: 0 0 auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.vb-head-text { min-width: 0; }
+.vb-head-title { font-size: 15px; font-weight: 700; }
+.vb-head-sub { font-size: 12.5px; color: var(--ink-3); }
+.vb-head.live .vb-head-title { color: var(--red); }
+.vb-head.busy .vb-head-title { color: var(--amber); }
+.vb-provider {
+  margin-left: auto; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+  color: var(--ink-3); text-transform: uppercase; text-align: right;
+}
+
+/* 56px: a comfortable thumb target, and small enough to sit in a header strip rather than
+   own a card of its own the way the Voice Call page's 96px button does. */
+.vb-call-btn {
+  width: 56px; height: 56px; flex: 0 0 56px; border-radius: 50%; border: none;
+  background: var(--navy-900); color: #fff; display: grid; place-items: center;
+  box-shadow: 0 6px 16px rgba(10,24,54,0.22);
+}
+.vb-call-btn svg { width: 24px; height: 24px; }
+.vb-call-btn.live { background: var(--red); animation: pulse 1.4s infinite; }
+.vb-call-btn.speaking { background: var(--green); animation: none; }
+@media (prefers-reduced-motion: reduce) { .vb-call-btn.live { animation: none; } }
+
+.vb-thread {
+  flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px;
+}
+
+/* min-width:0 + overflow-wrap for the same reason .turn has them: one unbreakable token
+   otherwise drags a horizontal scrollbar across the whole thread. */
+.vb-msg {
+  max-width: 84%; min-width: 0; overflow-wrap: anywhere;
+  padding: 10px 13px; border-radius: 14px; font-size: 14.5px; line-height: 1.5;
+}
+.vb-msg.you { align-self: flex-end; background: var(--navy-900); color: #fff; border-bottom-right-radius: 4px; }
+.vb-msg.agent { align-self: flex-start; background: #eef1f6; border-bottom-left-radius: 4px; }
+.vb-msg.agent.streaming::after {
+  content: '▍'; margin-left: 2px; opacity: 0.45; animation: caret 1s steps(1) infinite;
+}
+/* The tool trace stays — this is still a demo of an agent — but quietly: on this page the
+   cards are the story and the trace is the footnote. */
+.vb-trace {
+  align-self: center; max-width: 100%; overflow-wrap: anywhere; white-space: pre-wrap;
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); opacity: 0.75;
+}
+.vb-trace.bad { color: var(--red); opacity: 1; }
+.vb-block { align-self: stretch; }
+
+.vb-results-head {
+  font-size: 13px; margin: 2px 2px 8px; display: flex; gap: 5px; flex-wrap: wrap;
+}
+.vb-results-head span { color: var(--ink-3); }
+
+/* ------------------------------------------------------------- the flight card */
+.vb-card {
+  position: relative; background: var(--card);
+  border: 1px solid var(--border-strong); border-radius: 12px;
+  padding: 12px 14px 11px; margin-bottom: 10px;
+}
+.vb-card.booked { border-color: #a7e3c8; background: #f6fdfa; }
+.vb-tag {
+  position: absolute; top: -8px; left: 12px; background: var(--navy-900); color: #fff;
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 20px;
+}
+
+.vb-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vb-airline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.vb-logo {
+  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 7px; background: var(--amber);
+  color: #3a2600; font-weight: 800; font-size: 11px; display: grid; place-items: center;
+}
+.vb-flightno { font-family: var(--mono); font-size: 12px; color: var(--ink-2); }
+.vb-price { text-align: right; }
+.vb-amount { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
+.vb-per { font-size: 11px; color: var(--ink-3); }
+
+.vb-route { display: flex; align-items: center; gap: 10px; margin: 8px 0 9px; }
+.vb-point { text-align: center; }
+.vb-clock { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.15; }
+.vb-iata { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+.vb-leg { flex: 1 1 auto; min-width: 60px; text-align: center; }
+.vb-dur { font-size: 11px; color: var(--ink-3); }
+.vb-line { display: flex; align-items: center; gap: 4px; margin: 3px 0; }
+.vb-line i { flex: 1 1 auto; height: 1.5px; background: var(--border-strong); }
+.vb-line b { width: 5px; height: 5px; flex: 0 0 5px; border-radius: 50%; background: var(--border-strong); }
+.vb-stops { font-size: 11px; font-weight: 600; color: var(--green); }
+
+.vb-card-foot {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  border-top: 1px solid var(--border); padding-top: 9px;
+}
+.vb-meta {
+  flex: 1 1 160px; min-width: 0; display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+}
+.vb-meta .badge { font-size: 9.5px; padding: 2px 6px; }
+/* 44px tall and never narrower than a thumb: this is the one control on the page a caller
+   who cannot read the rest of the card still has to be able to hit. */
+.vb-book-btn {
+  flex: 0 0 auto; min-width: 96px; min-height: 44px; padding: 0 20px; border: none;
+  border-radius: 10px; background: var(--navy-900); color: #fff;
+  font-size: 14px; font-weight: 700;
+}
+.vb-book-btn:hover { background: var(--navy-700); }
+.vb-book-btn:disabled { background: #8fa2c4; opacity: 0.7; cursor: default; }
+
+.vb-book { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 10px; }
+.vb-book-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.vb-book-row .inp { flex: 1 1 0; min-width: 0; min-height: 44px; }
+.vb-grow { flex: 1 1 auto; min-height: 44px; }
+
+/* --------------------------------------------------------------- pnr & empty */
+.vb-pnr { background: #f2f7ff; border: 1px solid #cfdcf6; border-radius: 10px; padding: 12px 14px; }
+.vb-card.booked .vb-pnr { background: #f0fbf6; border-color: #a7e3c8; }
+.vb-pnr-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; }
+/* Wide letter-spacing because this is the one string on the page a caller will read back
+   over the phone, character by character. */
+.vb-pnr-code { font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: 0.14em; margin: 3px 0 5px; }
+.vb-pnr-sub { font-size: 12.5px; color: var(--ink-2); line-height: 1.5; }
+.vb-pnr-note { font-size: 11.5px; color: var(--ink-3); margin-top: 5px; }
+
+.vb-empty { text-align: center; padding: 16px 12px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+.vb-empty-msg { font-size: 14.5px; font-weight: 600; }
+.vb-empty-sub { font-size: 12px; color: var(--ink-3); margin: 10px 0 8px; }
+.vb-chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.vb-chip {
+  min-height: 40px; padding: 8px 13px; border-radius: 9px; background: #fff;
+  border: 1px solid var(--border-strong); color: var(--ink-2);
+  font-family: var(--mono); font-size: 12px; font-weight: 600;
+}
+.vb-chip.static { opacity: 0.75; cursor: default; }
+
+/* ------------------------------------------------------------------- compose */
+.vb-compose {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1.5px solid var(--border-strong); border-radius: 12px;
+  padding: 6px 6px 6px 14px;
+}
+.vb-compose:focus-within { border-color: var(--navy-600); box-shadow: 0 0 0 3px rgba(30,61,115,0.08); }
+/* 16px, not 14: iOS Safari zooms the whole page in on focus for anything smaller, and a
+   zoomed page on a call is a page whose mic button has moved. */
+.vb-compose-inp {
+  flex: 1 1 auto; min-width: 0; border: none; outline: none; background: none;
+  font-family: var(--sans); font-size: 16px; color: var(--ink); min-height: 40px;
+}
+.vb-compose-inp:disabled { color: var(--ink-3); }
+.vb-send {
+  width: 44px; height: 44px; flex: 0 0 44px; border: none; border-radius: 10px;
+  background: var(--navy-900); color: #fff; display: grid; place-items: center;
+}
+.vb-send svg { width: 17px; height: 17px; }
+.vb-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Below this the card's rows still fit, but the chrome has to give up its margins and the
+   Book button takes a line of its own. The layout does not otherwise change — a caller who
+   used the page on a laptop should recognise it on a phone. */
+@media (max-width: 640px) {
+  .vb-shell { height: calc(100vh - 92px); gap: 8px; }
+  .vb-thread { padding: 10px; gap: 8px; }
+  .vb-provider { display: none; }
+  .vb-msg { max-width: 92%; }
+  .vb-card-foot { gap: 8px; }
+  .vb-book-btn { flex: 1 1 100%; }
+  .vb-book-row { flex-wrap: wrap; }
+  .vb-book-row .inp { flex: 1 1 100%; }
+}
