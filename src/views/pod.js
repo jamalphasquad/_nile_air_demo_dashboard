@@ -51,8 +51,10 @@ const CAP = {
 // One stack's card. Returns { el, cleanup } so the view can tear down its timers.
 function podCard(stack, onSelect) {
   const el = document.createElement('div')
-  el.className = 'card'
+  el.className = 'card pod-card'
+  if (stack.id === currentStack()) el.classList.add('selected')
   el.innerHTML = `
+    <div class="pod-active-tag">Active</div>
     <div class="card-head">
       <div class="card-title">${stack.label}</div>
       <div class="card-meta" id="cost">—</div>
@@ -196,12 +198,14 @@ function podCard(stack, onSelect) {
     try {
       const s = await ec2.status(stack.id)
       if (!s.exists) {
+        el.classList.remove('running')
         body.innerHTML = `<div class="muted">No pod. Click <b>Start pod</b> to provision
           the ${stack.gpu} (~$${stack.hourly_usd}/hr).</div>`
         cost.textContent = ''
         updateKa(null, 'none')   // shown but disabled, with the reason
         return
       }
+      el.classList.toggle('running', s.state === 'RUNNING')
       cost.textContent = s.cost_per_hr ? `$${s.cost_per_hr}/hr` : ''
       updateKa(s.keepalive, s.state)
       body.innerHTML = `
@@ -418,8 +422,10 @@ export function renderPod() {
       // no longer being the selected one — the cloud card's health reads through the shared
       // pod base, so it must stop claiming "reachable" once that base points elsewhere.
       children.forEach((c) => {
+        const isSel = c.el.dataset.stack === currentStack()
         const radio = c.el.querySelector('#sel')
-        if (radio) radio.checked = c.el.dataset.stack === currentStack()
+        if (radio) radio.checked = isSel
+        c.el.classList.toggle('selected', isSel)
         c.onSelectionChanged?.()
       })
     }))

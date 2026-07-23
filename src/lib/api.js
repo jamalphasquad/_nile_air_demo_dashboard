@@ -227,3 +227,33 @@ export const pod = {
   chat: (text, history, language) =>
     podReq('/chat', { method: 'POST', body: { text, history, language } }),
 }
+
+// Phone line (Twilio bridge). ALL of it lives on the EC2 tier at /phone — unlike the pod
+// surface it never moves, because Twilio needs a stable public endpoint and the bridge, the
+// live-call registry and the call history all sit on the always-on box. So these go straight
+// to EC2_URL, with no podBase() resolution and no dependence on which stack is selected.
+const PHONE_BASE = `${EC2_URL}/phone`
+export const phone = {
+  // Header of the Phone Calls page: the number to dial, and whether the line is wired up.
+  config: () => req(EC2_URL, '/phone/config'),
+  // Calls in flight right now (registry snapshot), polled by the Live tab.
+  live: () => req(EC2_URL, '/phone/live'),
+  // Call history, newest first.
+  calls: () => req(EC2_URL, '/phone/calls'),
+  // One call with its full event timeline (transcript + tool calls interleaved).
+  call: (sid) => req(EC2_URL, `/phone/calls/${encodeURIComponent(sid)}`),
+  // End a live call (drops the media stream; Twilio then hangs up the caller).
+  hangup: (sid) =>
+    req(EC2_URL, `/phone/calls/${encodeURIComponent(sid)}/hangup`, { method: 'POST' }),
+
+  // SSE URL for one live call's transcript/tool feed. Token as a query param, since
+  // EventSource cannot set headers — the same arrangement as pod.eventsUrl().
+  eventsUrl: (sid) =>
+    `${PHONE_BASE}/calls/${encodeURIComponent(sid)}/events?token=${encodeURIComponent(getToken() || '')}`,
+
+  // Human-takeover audio socket. wss with the token as a query param (a browser WebSocket
+  // cannot set headers); speaks the exact VoiceCall wire (PCM16 16k up / 24k down), so the
+  // dashboard reuses lib/audio.js VoiceCall unchanged. Opening it IS the takeover.
+  operatorWsUrl: (sid) =>
+    `${PHONE_BASE.replace(/^http/, 'ws')}/operator/${encodeURIComponent(sid)}?token=${encodeURIComponent(getToken() || '')}`,
+}
